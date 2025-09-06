@@ -6,27 +6,57 @@ from binance.exceptions import BinanceAPIException
 
 accounts_bp = Blueprint('accounts', __name__)
 
+def get_btc_precision(client):
+    """Fetches quantity precision for BTCUSDT."""
+    try:
+        exchange_info = client.futures_exchange_info()
+        for s in exchange_info['symbols']:
+            if s['symbol'] == 'BTCUSDT':
+                return s['quantityPrecision']
+    except Exception as e:
+        print(f"Error getting BTC precision: {e}")
+    return 3 # Default to 3 if API fails
+
 def verify_binance_keys(api_key, api_secret, is_testnet):
     """
-    ট্রেডিং পারমিশন আছে কিনা তা নিশ্চিত করার জন্য একটি ছোট টেস্ট অর্ডার প্লেস করে।
+    Checks for trading permissions by placing and immediately canceling a valid limit order
+    that meets the minimum notional value requirement.
     """
     try:
         client = Client(api_key, api_secret, testnet=is_testnet)
-        # প্রথমে অ্যাকাউন্টের তথ্য চেক করা
-        client.futures_account()
+        client.futures_account() # Check for basic connectivity
         
-        # এখন একটি ছোট, অসম্ভব লিমিট অর্ডার দিয়ে ট্রেডিং পারমিশন চেক করা
-        # এই অর্ডারটি কখনো পূরণ হবে না এবং আমরা সাথে সাথেই এটি বাতিল করে দেব
+        # --- পরিবর্তিত অংশ শুরু ---
+        
+        # Define minimum notional value for the test order
+        MIN_NOTIONAL = 101.0  # Set to slightly above 100 for safety
+
+        # 1. Get current price to calculate a safe, non-executable test price
+        mark_price_info = client.futures_mark_price(symbol='BTCUSDT')
+        current_price = float(mark_price_info['markPrice'])
+        test_price = round(current_price * 0.5, 1) # 50% below market, rounded for BTC tick size
+
+        # 2. Get quantity precision for BTCUSDT
+        precision = get_btc_precision(client)
+
+        # 3. Calculate quantity needed to meet the minimum notional value at the low test price
+        test_quantity = round(MIN_NOTIONAL / test_price, precision)
+
+        print(f"Verification: Using test price {test_price} and calculated quantity {test_quantity}")
+
+        # 4. Place the test order with the calculated price and quantity
         test_order = client.futures_create_order(
             symbol='BTCUSDT',
             side='BUY',
             type='LIMIT',
-            timeInForce='GTC', # Good till cancelled
-            quantity=0.001,
-            price=1 # একটি অবাস্তব কম দাম
+            timeInForce='GTC',
+            quantity=test_quantity,
+            price=test_price
         )
-        # অর্ডার সফলভাবে প্লেস হলে, সাথে সাথে বাতিল করা
+        
+        # 5. Immediately cancel the test order
         client.futures_cancel_order(symbol='BTCUSDT', orderId=test_order['orderId'])
+        # --- পরিবর্তিত অংশ শেষ ---
         
         return True, "API Keys are valid and have trading permissions!"
     except BinanceAPIException as e:
