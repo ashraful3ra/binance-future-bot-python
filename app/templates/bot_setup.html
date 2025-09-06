@@ -1,0 +1,186 @@
+{% extends 'base.html' %}
+{% block title %}Bot Setup{% endblock %}
+{% block content %}
+<style>
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .form-section { background-color: #21262d; padding: 15px; border-radius: 6px; }
+    .form-section h3 { margin-top: 0; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+    .full-width { grid-column: 1 / -1; }
+    .toggle-switch { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+    .toggle-switch input { width: auto; margin: 0; }
+    .toggle-switch label { width: auto; margin: 0; }
+</style>
+
+<div class="card">
+    <h2>Create / Edit Bot Setup</h2>
+    <form id="bot-setup-form">
+        <div class="form-grid">
+            <div class="form-section">
+                <h3>Basic Setup</h3>
+                <label for="name">Bot Name</label>
+                <input type="text" id="name" placeholder="e.g., My Follow Bot" required>
+
+                <label for="timeframe">Timeframe</label>
+                <select id="timeframe" required>
+                    <option value="1m">1 Minute</option><option value="5m">5 Minutes</option><option value="15m">15 Minutes</option><option value="30m">30 Minutes</option><option value="1h">1 Hour</option><option value="4h">4 Hours</option>
+                </select>
+
+                <label for="symbols">Coins / Symbols (comma separated)</label>
+                <input type="text" id="symbols" placeholder="ETHUSDT,BTCUSDT,SOLUSDT" required>
+                
+                <label for="trade_mode">Trade Mode (Direction)</label>
+                <select id="trade_mode" required>
+                    <option value="follow">Follow (Green ⇒ Long, Red ⇒ Short)</option>
+                    <option value="opposite">Opposite (Green ⇒ Short, Red ⇒ Long)</option>
+                </select>
+                
+                <label for="leverage">Leverage: <span id="leverage-value">20</span>x</label>
+                <input type="range" id="leverage" min="1" max="150" value="20" oninput="document.getElementById('leverage-value').textContent = this.value">
+            </div>
+
+            <div class="form-section">
+                <h3>Margin Setup</h3>
+                <label for="margin_mode">Margin Mode</label>
+                <select id="margin_mode">
+                    <option value="normal">Normal (Fixed Margin)</option>
+                    <option value="recovery">Recovery Mode</option>
+                </select>
+
+                <label for="margin_usd">Fixed Margin (USD)</label>
+                <input type="number" step="any" id="margin_usd" placeholder="e.g., 10" required>
+                
+                <div id="recovery-options" style="display:none;">
+                    <label for="recovery_roi_threshold">Recovery Trigger (ROI < X %)</label>
+                    <input type="number" step="any" id="recovery_roi_threshold" placeholder="e.g., -5 for -5%">
+                    <label for="max_recovery_margin">Maximum Recovery Margin (USD)</label>
+                    <input type="number" step="any" id="max_recovery_margin" placeholder="e.g., 500">
+                </div>
+            </div>
+
+            <div class="form-section full-width">
+                <h3>Targets in ROI (%)</h3>
+                <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
+                    <div><label for="r1">R1 (Stoploss)</label><input type="number" step="any" id="r1" placeholder="-20"></div>
+                    <div><label for="r2">R2</label><input type="number" step="any" id="r2" placeholder="10"></div>
+                    <div><label for="r3">R3</label><input type="number" step="any" id="r3" placeholder="15"></div>
+                    <div><label for="r4">R4</label><input type="number" step="any" id="r4" placeholder="20"></div>
+                    <div><label for="r5">R5</label><input type="number" step="any" id="r5" placeholder="25"></div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>Run Mode</h3>
+                <select id="run_mode">
+                    <option value="ongoing">Ongoing Mode</option>
+                    <option value="limit">Limit Mode</option>
+                </select>
+                <div id="limit-options" style="display:none;">
+                    <label for="max_trades_limit">Max Trades Limit</label>
+                    <input type="number" id="max_trades_limit" placeholder="e.g., 100">
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>Main Trade Conditions</h3>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="open_at_candle_open" checked>
+                    <label for="open_at_candle_open">Open trade at new candle Open Price</label>
+                </div>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="close_at_candle_close" checked>
+                    <label for="close_at_candle_close">Close trade at candle Close Price</label>
+                </div>
+            </div>
+
+            <div class="form-section full-width">
+                <button type="submit" style="width: 100%; padding: 15px;">SAVE BOT CONFIGURATION</button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('margin_mode').addEventListener('change', function() {
+        document.getElementById('recovery-options').style.display = this.value === 'recovery' ? 'block' : 'none';
+    });
+    document.getElementById('run_mode').addEventListener('change', function() {
+        document.getElementById('limit-options').style.display = this.value === 'limit' ? 'block' : 'none';
+    });
+
+    document.getElementById('bot-setup-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const botData = {
+            name: document.getElementById('name').value,
+            timeframe: document.getElementById('timeframe').value,
+            symbols: document.getElementById('symbols').value.split(',').map(s => s.trim().toUpperCase()),
+            trade_mode: document.getElementById('trade_mode').value,
+            leverage: document.getElementById('leverage').value,
+            margin_mode: document.getElementById('margin_mode').value,
+            margin_usd: document.getElementById('margin_usd').value,
+            recovery_roi_threshold: document.getElementById('recovery_roi_threshold').value,
+            max_recovery_margin: document.getElementById('max_recovery_margin').value,
+            roi_targets: {
+                r1: document.getElementById('r1').value, r2: document.getElementById('r2').value,
+                r3: document.getElementById('r3').value, r4: document.getElementById('r4').value,
+                r5: document.getElementById('r5').value,
+            },
+            run_mode: document.getElementById('run_mode').value,
+            max_trades_limit: document.getElementById('max_trades_limit').value,
+            conditions: {
+                openAtCandleOpen: document.getElementById('open_at_candle_open').checked,
+                closeAtCandleClose: document.getElementById('close_at_candle_close').checked
+            }
+        };
+
+        const response = await fetch('/api/bot-setup', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(botData)
+        });
+        const result = await response.json();
+        showToast(result.message, !result.success);
+        if(result.success) window.location.href = '/';
+    });
+    
+    async function loadBotConfig() {
+        const response = await fetch('/api/bot-setup');
+        const data = await response.json();
+        if(data.name) {
+            document.getElementById('name').value = data.name;
+            document.getElementById('timeframe').value = data.timeframe;
+            document.getElementById('symbols').value = data.symbols.join(',');
+            document.getElementById('trade_mode').value = data.trade_mode;
+            document.getElementById('leverage').value = data.leverage;
+            document.getElementById('leverage-value').textContent = data.leverage;
+            document.getElementById('margin_mode').value = data.margin_mode;
+            document.getElementById('margin_usd').value = data.margin_usd;
+            document.getElementById('recovery_roi_threshold').value = data.recovery_roi_threshold;
+            document.getElementById('max_recovery_margin').value = data.max_recovery_margin;
+            if (data.roi_targets) {
+                document.getElementById('r1').value = data.roi_targets.r1;
+                document.getElementById('r2').value = data.roi_targets.r2;
+                document.getElementById('r3').value = data.roi_targets.r3;
+                document.getElementById('r4').value = data.roi_targets.r4;
+                document.getElementById('r5').value = data.roi_targets.r5;
+            }
+            document.getElementById('run_mode').value = data.run_mode;
+            document.getElementById('max_trades_limit').value = data.max_trades_limit;
+            if (data.conditions) {
+                document.getElementById('open_at_candle_open').checked = data.conditions.openAtCandleOpen;
+                document.getElementById('close_at_candle_close').checked = data.conditions.closeAtCandleClose;
+            }
+            document.getElementById('margin_mode').dispatchEvent(new Event('change'));
+            document.getElementById('run_mode').dispatchEvent(new Event('change'));
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('margin_mode').dispatchEvent(new Event('change'));
+        document.getElementById('run_mode').dispatchEvent(new Event('change'));
+        loadBotConfig();
+    });
+</script>
+{% endblock %}

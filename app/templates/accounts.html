@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Account Setup{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 600px; margin: auto;">
+    <h2>Binance API Account</h2>
+    <p>Only one API account is supported for all bots.</p>
+    <form id="account-form">
+        <label for="name">Account Name</label>
+        <input type="text" id="name" placeholder="My Main Account" required>
+        <label for="api_key">API Key</label>
+        <input type="text" id="api_key" placeholder="Enter API Key" required>
+        <label for="api_secret">API Secret</label>
+        <input type="password" id="api_secret" placeholder="Enter API Secret" required>
+        <div style="display: flex; align-items: center; margin-bottom: 15px;"><input type="checkbox" id="is_testnet" style="width: auto; margin:0 10px 0 0;"><label for="is_testnet" style="width: auto; margin:0;">Use Testnet</label></div>
+        <button type="submit">SAVE ACCOUNT</button>
+    </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+    const form = document.getElementById('account-form');
+    
+    async function loadAccount() {
+        const response = await fetch('/accounts/api');
+        const data = await response.json();
+        if(data.name) {
+            form.name.value = data.name;
+            form.api_key.value = data.api_key;
+            form.api_secret.value = data.api_secret;
+            form.is_testnet.checked = data.is_testnet;
+        }
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const response = await fetch('/accounts/api', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: form.name.value, api_key: form.api_key.value,
+                api_secret: form.api_secret.value, is_testnet: form.is_testnet.checked
+            })
+        });
+        const result = await response.json();
+        showToast(result.message, !result.success);
+    });
+    
+    document.addEventListener('DOMContentLoaded', loadAccount);
+</script>
+{% endblock %}

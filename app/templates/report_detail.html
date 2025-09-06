@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}Report: {{ bot.name }}{% endblock %}
+{% block content %}
+<style>
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+    .stat-card { background-color: #21262d; padding: 15px; border-radius: 6px; text-align: center; }
+    .stat-card h4 { margin: 0 0 5px 0; color: #8b949e; }
+    .stat-card p { margin: 0; font-size: 1.5em; font-weight: bold; }
+    .pnl-positive { color: var(--brand-color); }
+    .pnl-negative { color: var(--danger-color); }
+    .trade-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    .trade-table th, .trade-table td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border-color); }
+    .trade-table th { font-size: 0.9em; color: #8b949e; }
+</style>
+
+<div class="card">
+    <h2>Report for: {{ bot.name }}</h2>
+    <p>Details for all trades executed by this bot configuration.</p>
+</div>
+
+<div class="card">
+    <h2>Statistics</h2>
+    <div class="stats-grid">
+        <div class="stat-card"><h4>Total Trades</h4><p>{{ stats.total_trades }}</p></div>
+        <div class="stat-card"><h4>Win Trades</h4><p class="pnl-positive">{{ stats.win_trades }}</p></div>
+        <div class="stat-card"><h4>Loss Trades</h4><p class="pnl-negative">{{ stats.loss_trades }}</p></div>
+        <div class="stat-card"><h4>Total Profit</h4><p class="pnl-positive">{{ stats.total_profit }} USDT</p></div>
+        <div class="stat-card"><h4>Total Loss</h4><p class="pnl-negative">{{ stats.total_loss }} USDT</p></div>
+        <div class="stat-card"><h4>Net Result</h4><p class="{{ 'pnl-positive' if stats.net_result|float >= 0 else 'pnl-negative' }}">{{ stats.net_result }} USDT</p></div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Trade History</h2>
+    <table class="trade-table">
+        <thead>
+            <tr><th>Symbol</th><th>Side</th><th>Entry Time</th><th>Exit Time</th><th>Margin</th><th>PNL (USDT)</th><th>ROI (%)</th></tr>
+        </thead>
+        <tbody>
+            {% for trade in trades %}
+            <tr>
+                <td>{{ trade.symbol }}</td>
+                <td class="{{ 'pnl-positive' if trade.side == 'LONG' else 'pnl-negative' }}">{{ trade.side }}</td>
+                <td>{{ trade.entry_time.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                <td>{{ trade.exit_time.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                <td>{{ trade.margin_used }}</td>
+                <td class="{{ 'pnl-positive' if trade.pnl >= 0 else 'pnl-negative' }}">{{ '%.2f'|format(trade.pnl) }}</td>
+                <td class="{{ 'pnl-positive' if trade.roi_percent >= 0 else 'pnl-negative' }}">{{ '%.2f'|format(trade.roi_percent) }}%</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" style="text-align: center; padding: 20px;">No trades have been logged for this bot yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

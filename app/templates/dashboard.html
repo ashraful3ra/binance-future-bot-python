@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>Futures Account Balance</h2>
+    <h1 id="balance-display" style="text-align: right; margin: 0; font-size: 2.5em;">
+        <span style="font-size: 0.5em; color: #8b949e;">Loading...</span>
+    </h1>
+</div>
+<div class="card">
+    <h2>Bot Dashboard</h2>
+    <div id="bot-list"><p>Loading bots...</p></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+    const botList = document.getElementById('bot-list');
+    
+    async function loadBots() {
+        const response = await fetch('/api/bots');
+        const bots = await response.json();
+        botList.innerHTML = '';
+        if (bots.length === 0) {
+            botList.innerHTML = '<p>No bot configured. Go to "Bot Setup" to create one.</p>';
+            return;
+        }
+        bots.forEach(bot => {
+            const isRunning = bot.status === 'running';
+            const statusIndicatorClass = isRunning ? 'status-running' : 'status-stopped';
+            const actionButton = isRunning 
+                ? `<button class="close" onclick="stopBot(${bot.id})">Close</button>`
+                : `<button onclick="startBot(${bot.id})">Start</button>`;
+            
+            const accountTypeTag = bot.is_testnet 
+                ? `<span class="tag testnet">TESTNET</span>`
+                : `<span class="tag live">LIVE</span>`;
+
+            botList.innerHTML += `
+            <div class="bot-list-item">
+                <div>
+                    <strong>
+                        <span class="bot-status-indicator ${statusIndicatorClass}"></span>
+                        ${bot.name}
+                        ${accountTypeTag}
+                    </strong>
+                    <br><small>Symbols: ${bot.symbols.join(', ')} | Status: ${bot.status}</small>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    ${actionButton}
+                    <button class="push" style="background-color: #6e7681;" disabled>Push</button>
+                </div>
+            </div>`;
+        });
+    }
+
+    async function startBot(botId) {
+        const response = await fetch(`/api/bots/${botId}/start`, { method: 'POST' });
+        const result = await response.json();
+        showToast(result.message, !result.success);
+        // --- সমাধান: UI তাৎক্ষণিক আপডেট করার জন্য এখানে loadBots() কল করা হচ্ছে ---
+        if (response.ok) {
+            loadBots();
+        }
+    }
+
+    async function stopBot(botId) {
+        const response = await fetch(`/api/bots/${botId}/close`, { method: 'POST' });
+        const result = await response.json();
+        showToast(result.message, !result.success);
+        // --- সমাধান: UI তাৎক্ষণিক আপডেট করার জন্য এখানে loadBots() কল করা হচ্ছে ---
+        if (response.ok) {
+            loadBots();
+        }
+    }
+    
+    async function loadBalance() {
+        const display = document.getElementById('balance-display');
+        try {
+            const response = await fetch('/accounts/api/main-balance');
+            const data = await response.json();
+            if (response.ok) {
+                display.innerHTML = `${data.balance} <span style="font-size: 0.5em; color: #8b949e;">USDT</span>`;
+            } else {
+                display.innerHTML = `<span style="font-size: 0.5em; color: var(--danger-color);">${data.error}</span>`;
+            }
+        } catch (e) {
+            display.innerHTML = `<span style="font-size: 0.5em; color: var(--danger-color);">Error fetching balance.</span>`;
+        }
+    }
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        loadBots();
+        loadBalance();
+
+        // WebSocket অন্য ট্যাব থেকে হওয়া পরিবর্তনের জন্য UI সিঙ্ক করবে
+        const socket = io();
+        socket.on('bot_status_update', (data) => {
+            console.log('Bot status updated via WebSocket, reloading list.');
+            loadBots();
+        });
+    });
+</script>
+{% endblock %}

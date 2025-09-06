@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% block title %}Create Bot{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 600px; margin: auto;">
+    <h2>Create New Bot</h2>
+    <form id="create-bot-form">
+        <label>Select Account</label>
+        <select id="bot-account-select" required><option value="">Loading accounts...</option></select>
+        
+        <label>Select Symbol</label>
+        <select id="bot-symbol-select" required><option value="">First select an account</option></select>
+        
+        <label>Timeframe</label>
+        <select id="timeframe" required>
+            <option value="1m">1 Minute</option>
+            <option value="5m">5 Minutes</option>
+            <option value="15m">15 Minutes</option>
+            <option value="1h">1 Hour</option>
+            <option value="4h">4 Hours</option>
+            <option value="1d">1 Day</option>
+        </select>
+        
+        <label>Leverage: <span id="leverage-value">20</span>x</label>
+        <input type="range" id="leverage" min="1" max="125" value="20" oninput="document.getElementById('leverage-value').textContent = this.value" style="margin-bottom: 20px;">
+        
+        <label>Margin (USDT)</label>
+        <input type="number" id="margin" placeholder="e.g., 100" required>
+        
+        <button type="submit">Create Bot</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const botAccountSelect = document.getElementById('bot-account-select');
+    const botSymbolSelect = document.getElementById('bot-symbol-select');
+    const createBotForm = document.getElementById('create-bot-form');
+
+    async function populateAccountsDropdown() {
+        try {
+            const response = await fetch('/api/accounts');
+            if (!response.ok) throw new Error('Failed to load accounts');
+            const accounts = await response.json();
+            
+            botAccountSelect.innerHTML = '<option value="">Select an Account</option>';
+            accounts.forEach(acc => {
+                botAccountSelect.innerHTML += `<option value="${acc.id}">${acc.name}</option>`;
+            });
+        } catch (error) {
+            console.error(error);
+            botAccountSelect.innerHTML = '<option value="">Could not load accounts</option>';
+        }
+    }
+
+    botAccountSelect.addEventListener('change', async () => {
+        const accountId = botAccountSelect.value;
+        if (!accountId) {
+            botSymbolSelect.innerHTML = '<option value="">First select an account</option>';
+            return;
+        }
+        botSymbolSelect.innerHTML = '<option>Loading symbols...</option>';
+        try {
+            const response = await fetch(`/api/symbols?account_id=${accountId}`);
+            if (!response.ok) throw new Error('Failed to load symbols');
+            const symbols = await response.json();
+            
+            botSymbolSelect.innerHTML = '';
+            symbols.forEach(symbol => {
+                botSymbolSelect.innerHTML += `<option value="${symbol}">${symbol}</option>`;
+            });
+        } catch (error) {
+            console.error(error);
+            botSymbolSelect.innerHTML = '<option value="">Could not load symbols</option>';
+        }
+    });
+
+    createBotForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const response = await fetch('/api/bots', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                account_id: botAccountSelect.value,
+                symbol: botSymbolSelect.value,
+                timeframe: document.getElementById('timeframe').value,
+                leverage: document.getElementById('leverage').value,
+                margin: document.getElementById('margin').value
+            })
+        });
+        const result = await response.json();
+        showToast(result.message, !response.ok);
+        if (response.ok) {
+            createBotForm.reset();
+            document.getElementById('leverage-value').textContent = '20';
+            window.location.href = '/';
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', populateAccountsDropdown);
+</script>
+{% endblock %}

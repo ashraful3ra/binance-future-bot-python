@@ -1,0 +1,5 @@
+Flask~=2.3.0
+Flask-SQLAlchemy~=3.0.0
+python-binance~=1.0.19
+Flask-SocketIO~=5.3.6
+eventlet~=0.33.3

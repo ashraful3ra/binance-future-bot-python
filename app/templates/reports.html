@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block title %}Live Reports{% endblock %}
+
+{% block content %}
+<style>
+    .reports-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+    .pnl-positive { color: #238636; }
+    .pnl-negative { color: #da3633; }
+    .report-card-placeholder { text-align: center; padding: 50px; color: #6e7681; }
+</style>
+<div class="card">
+    <h2>Live Bot Reports</h2>
+    <div class="reports-grid" id="reports-container">
+        {% if not active_bots %}
+        <div class="report-card-placeholder" id="no-bots-running">
+            <p>No bots are currently running. Start a bot from the Dashboard to see live reports here.</p>
+        </div>
+        {% endif %}
+        {% for bot in active_bots %}
+        <div class="card report-card" id="bot-report-{{ bot.id }}">
+            <h3><span class="bot-status-indicator status-running"></span> {{ bot.symbol }}</h3>
+            <p><strong>Status:</strong> <span id="status-{{ bot.id }}">Running</span></p>
+            <p><strong>Entry Price:</strong> <span id="entry-{{ bot.id }}">N/A</span></p>
+            <p><strong>Position:</strong> <span id="position-{{ bot.id }}">N/A</span></p>
+            <p><strong>Live P&L (USDT):</strong> <strong class="pnl-neutral" id="pnl-{{ bot.id }}">0.00</strong></p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const socket = io();
+
+        socket.on('connect', function() {
+            console.log('Connected to WebSocket server!');
+        });
+
+        socket.on('pnl_update', function(data) {
+            const pnlElement = document.getElementById(`pnl-${data.bot_id}`);
+            const entryElement = document.getElementById(`entry-${data.bot_id}`);
+            const positionElement = document.getElementById(`position-${data.bot_id}`);
+
+            if (pnlElement) {
+                pnlElement.textContent = data.pnl;
+                pnlElement.className = parseFloat(data.pnl) >= 0 ? 'pnl-positive' : 'pnl-negative';
+                entryElement.textContent = data.entry_price;
+                positionElement.textContent = data.position_amount;
+            }
+        });
+
+        socket.on('bot_stopped', function(data) {
+            const reportCard = document.getElementById(`bot-report-${data.bot_id}`);
+            if (reportCard) reportCard.remove();
+        });
+
+        socket.on('bot_status_update', function(data) {
+            const container = document.getElementById('reports-container');
+            const placeholder = document.getElementById('no-bots-running');
+            
+            if (data.status === 'running') {
+                if (placeholder) placeholder.style.display = 'none';
+                if (!document.getElementById(`bot-report-${data.bot_id}`)) {
+                    const newCard = document.createElement('div');
+                    newCard.className = 'card report-card';
+                    newCard.id = `bot-report-${data.bot_id}`;
+                    newCard.innerHTML = `
+                        <h3><span class="bot-status-indicator status-running"></span> ${data.bot.symbol}</h3>
+                        <p><strong>Status:</strong> <span id="status-${data.bot.id}">Running</span></p>
+                        <p><strong>Entry Price:</strong> <span id="entry-${data.bot.id}">N/A</span></p>
+                        <p><strong>Position:</strong> <span id="position-${data.bot.id}">N/A</span></p>
+                        <p><strong>Live P&L (USDT):</strong> <strong class="pnl-neutral" id="pnl-${data.bot.id}">0.00</strong></p>
+                    `;
+                    container.appendChild(newCard);
+                }
+            } else if (data.status === 'stopped') {
+                const reportCard = document.getElementById(`bot-report-${data.bot_id}`);
+                if (reportCard) reportCard.remove();
+                if (container.children.length === 1 && container.children[0].id === 'no-bots-running' && placeholder) {
+                    placeholder.style.display = 'block';
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}
